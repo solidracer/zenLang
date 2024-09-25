@@ -56,6 +56,15 @@ static void readout(FILE *out, byte **code, value **k, len_t *len, len_t *klen) 
                 fread(&val->val.n, sizeof(double), 1, out);
                 break;
             }
+            case TYPE_STRING: {
+                len_t l;
+                fread(&l, sizeof(len_t), 1, out);
+                char *buf = ALLOCS(l);
+                fread(buf, 1, l, out);
+                SETVAL(val, TYPE_STRING, o, zstr_new(buf, l));
+                FREES(buf, l);
+                break;
+            }
         }
     }
 }

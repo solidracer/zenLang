@@ -138,16 +138,17 @@ void zlex_advance() {
             }
             case '\'':
             case '\"': {
-                char *buf = lexer.p;
+                lexer.tok.buf = lexer.p;
                 char t = *lexer.p++;
                 while (*lexer.p != t && *lexer.p != '\n' && *lexer.p != '\0') {
                     lexer.p++;
                 }
                 if (*lexer.p != t) zlex_error("SyntaxError", "unterminated string");
                 lexer.p++;
-                len_t len = lexer.p - buf;
+                len_t len = lexer.p - lexer.tok.buf;
+                lexer.tok.len = len;
                 lexer.tok.t = TOK_STR;
-                lexer.tok.info.buf = zstr_new(buf + 1, len - 2);
+                lexer.tok.info.buf = zstr_new(lexer.tok.buf + 1, len - 2);
                 return;
             }
             case '\0': {
@@ -159,15 +160,14 @@ void zlex_advance() {
                 continue;
             }
             default: {
-                char *buf = lexer.p;
-                lexer.tok.buf = buf;
+                lexer.tok.buf = lexer.p;
                 char c = *lexer.p++;
                 if (isalpha(c) || c == '_') {
                     while(isalnum(*lexer.p) || *lexer.p == '_') lexer.p++;
-                    uint_t len = lexer.p - buf;
+                    uint_t len = lexer.p - lexer.tok.buf;
                     lexer.tok.len = len;
                     lexer.tok.t = TOK_NAME;
-                    string *s = zstr_new(buf, len);
+                    string *s = zstr_new(lexer.tok.buf, len);
                     int kw = getkw(s);
                     if (kw!=-1) {
                         lexer.tok.t = kw;
@@ -176,12 +176,12 @@ void zlex_advance() {
                 }else if (isdigit(c) || c == '.') {
                     while(isalnum(*lexer.p) || *lexer.p == '.') lexer.p++;
                     char *end;
-                    double k = strtod(buf, &end);
+                    double k = strtod(lexer.tok.buf, &end);
                     if (end != lexer.p)
-                        zlex_error("MalformedNumber", "malformed number '%.*s'", (int)(lexer.p-buf), buf);
+                        zlex_error("MalformedNumber", "malformed number '%.*s'", (int)(lexer.p-lexer.tok.buf), lexer.tok.buf);
                     lexer.tok.t = TOK_NUMBER;
                     lexer.tok.info.k = k;
-                    lexer.tok.len = lexer.p - buf;
+                    lexer.tok.len = lexer.p - lexer.tok.buf;
                     return;
                 }else if (ispunct(c)) {
                     lexer.tok.t = c;

@@ -339,6 +339,12 @@ static void writestandard(FILE *out) {
                 fwrite(&GETVAL(k, n), sizeof(double), 1, out);
                 break;
             }
+            case TYPE_STRING: {
+                string *s = GETVAL(k, o);
+                fwrite(&s->len, sizeof(len_t), 1, out);
+                fwrite(s->str, 1, s->len, out);
+                break;
+            }
         }
     }
 }
