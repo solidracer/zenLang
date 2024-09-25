@@ -1,0 +1,9 @@
+var x = 6;
+print x;
+
+{
+    var x = 2;
+    print x;
+};
+
+print x;

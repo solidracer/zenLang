@@ -1,0 +1,12 @@
+var x = 2;
+var y = 6;
+
+print x == y;
+print x != y;
+print x < y;
+print x > y;
+print x <= y;
+print x >= y;
+
+# both are truthy, these will be true
+print !!x, !!y;
