@@ -1,4 +1,4 @@
-# ZENLANG v1.0.0
+# ZENLANG v1.0.1
 
 ## BUILDING THE EXECUTABLE
 >Bison and Flex are required to compile zenLang!

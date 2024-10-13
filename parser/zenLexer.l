@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
     code = yyparse();
 
     /*if (!code) zp_dumpbytecode(mchunk.code, mchunk.k);
-    return ZEN_SUCCESS;*/
+    return ZEN_SUCCESS*/;
 
     if (!code) 
         code = zvm_execute(mchunk.code, mchunk.k, mchunk.lines);
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
     zc_cleanup();
     fclose(yyin);
     /*printf("\nvm.allocated = %llu\n", vm.allocated);*/
-    if (code || vm.allocated)
-        fprintf(stderr, "exit code 1 (code = %d, vm.allocated = %llu)\n", code, vm.allocated);
-    return code || vm.allocated;
+    if (code || vm.allocated || vm.sp - vm.stack)
+        fprintf(stderr, "exit code 1 (code = %d, vm.allocated = %llu, vm.sp - vm.stack = %llu)\n", code, vm.allocated, vm.sp - vm.stack);
+    return code || vm.allocated || vm.sp - vm.stack;
 }

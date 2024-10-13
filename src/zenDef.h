@@ -2,7 +2,7 @@
 #define ZDEF_H
 #include <stddef.h>
 
-#define ZEN_VERSION "1.0.0"
+#define ZEN_VERSION "1.0.1"
 
 #define ZEN_SUCCESS 0
 #define ZEN_FAILURE 1

@@ -48,6 +48,14 @@
         }
     }
 
+    static void removevars(uint_t d) {
+        int loc = loccount;
+        while (loc > 0 && locals[loc-1].depth > d-1) {
+            loc--;
+            zc_codebyte(OP_POP);
+        }
+    }
+
     typedef struct bl {
         byte isloop;
         int bj;
@@ -55,6 +63,23 @@
     } blockinfo;
     static blockinfo blocks[30];
     static blockinfo *block = blocks;
+
+    #define getblock() (block-1)
+    /*static blockinfo *getblock() {
+        return block - 1;
+    }*/
+
+    static blockinfo *getloop() {
+        blockinfo *cur = getblock();
+        while ((cur-blocks)>=0 && !cur->isloop) cur -= 1;
+        return cur->isloop?cur:NULL;
+    }
+
+    #define getdepth(bl) ((bl-blocks)+1)
+    /*static int getdepth(blockinfo *bl) {
+        return (bl-blocks)+1;
+    }*/
+
     static int _enterblock(byte isloop) {
         if ((block-blocks) >= 30) {
             yyerror("too much depth (block stack overflow)");
@@ -171,9 +196,9 @@ while:
     } cond {
         $1[1] = zc_codejmp(OP_JMPFPOP);
     } 
-    '{' { enterblock(1); block->start = $1[0]; }
+    '{' { enterblock(1); getblock()->start = $1[0]; }
     stats
-    '}' { $1[2] = block->bj; leaveblock(); }
+    '}' { $1[2] = getblock()->bj; leaveblock(); }
     {
         zc_patchloop($1[0]);
         zc_patchjmp($1[1]);
@@ -183,26 +208,30 @@ while:
 
 break:
     BREAK {
-        if (!block->isloop) {
+        blockinfo *loop = getloop();
+        if (!loop) {
             yyerror("cannot break out of a non loop block");
             YYERROR;
         }
-        if (block->bj==-1)
-            block->bj = zc_codejmp(OP_JMP);
+        removevars(getdepth(loop));
+        if (loop->bj==-1)
+            loop->bj = zc_codejmp(OP_JMP);
         else {
-            zc_patchjmp(block->bj);
-            block->bj = zc_codejmp(OP_JMP);
+            zc_patchjmp(loop->bj);
+            loop->bj = zc_codejmp(OP_JMP);
         }
     } 
     ;
 
 continue:
     CONTINUE {
-        if (!block->isloop) {
+        blockinfo *loop = getloop();
+        if (!loop) {
             yyerror("cannot continue a non loop block");
             YYERROR;
         }
-        zc_patchloop(block->start);
+        removevars(getdepth(loop));
+        zc_patchloop(loop->start);
     }
     ;
 
