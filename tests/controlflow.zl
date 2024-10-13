@@ -1,0 +1,9 @@
+const var x = 7;
+
+if (x < 2) {
+    print "x is lesser than 2";
+}else if (x < 6) {
+    print "x is lesser than 6";
+}else {
+    print "what";
+}

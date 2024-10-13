@@ -1,0 +1,10 @@
+.vscode
+
+# bison and flex products cannot be in the repo
+src/zenLexer.c
+src/zenParser.c
+src/zenParser.h
+
+# binary files cannot be in the repo
+bin/
+obj/
