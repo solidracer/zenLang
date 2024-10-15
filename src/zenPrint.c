@@ -15,6 +15,28 @@ void zp_printvalue(value *v, int nline) {
             printf("null");
             break;
         }
+        case TYPE_TABLE: {
+            len_t i;
+            len_t read;
+            table *t = GETTABLE(((otable*)GETVAL(v, o)));
+            if (t->size==0) {
+                printf("{}");
+                break;
+            }
+            printf("{\n");
+            for (i = 0, read = 0;i<t->cap;i++) {
+                entry *e = t->hash + i;
+                if (!e->key) continue;
+                printf("   ");
+                printf(STRFRMT ": ", TOFRMT(e->key));
+                zp_printvalue(&e->v, 0);
+                if (read<t->size-1)
+                    printf(",\n");
+                read++;
+            }
+            printf("\n}");
+            break;
+        }
         case TYPE_STRING: {
             string *s = GETVAL(v, o);
             printf(STRFRMT, TOFRMT(s));
@@ -48,6 +70,11 @@ void zp_dumpbytecode(byte *code, value *k) {
             }
             case OP_PRINT: {
                 printf("PRINT\n");
+                i += 1;
+                continue;
+            }
+            case OP_DUP: {
+                printf("DUP\n");
                 i += 1;
                 continue;
             }
@@ -193,6 +220,51 @@ void zp_dumpbytecode(byte *code, value *k) {
                 unsigned short j = GETJMP();
                 printf("JMPGE %hu (%d)\n", j, i + j + 3);
                 i += 3;
+                continue;
+            }
+            case OP_DELETEGLOBAL: {
+                printf("DELETEGLOBAL\n");
+                i++;
+                continue;
+            }
+            case OP_SETGLOBAL: {
+                printf("SETGLOBAL\n");
+                i++;
+                continue;
+            }
+            case OP_GETGLOBAL: {
+                printf("GETGLOBAL\n");
+                i++;
+                continue;
+            }
+            case OP_NEWGLOBAL: {
+                printf("NEWGLOBAL\n");
+                i++;
+                continue;
+            }
+            case OP_GETTABLE: {
+                printf("GETTABLE\n");
+                i++;
+                continue;
+            }
+            case OP_NEWTABLE: {
+                printf("NEWTABLE\n");
+                i++;
+                continue;
+            }
+            case OP_DELETETABLE: {
+                printf("DELETETABLE\n");
+                i++;
+                continue;
+            }
+            case OP_INSERTTABLE: {
+                printf("INSERTTABLE\n");
+                i++;
+                continue;
+            }
+            case OP_NOT: {
+                printf("NOT\n");
+                i++;
                 continue;
             }
             case OP_HALT: break;

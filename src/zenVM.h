@@ -18,6 +18,7 @@ typedef enum {
     OP_GETFAST,
     OP_POP,
     OP_NEG,
+    OP_NOT,
     OP_JMP,
     OP_JMPF,
     OP_JMPT,
@@ -32,7 +33,18 @@ typedef enum {
     OP_JMPLT,
     OP_JMPGT,
     OP_JMPLE,
-    OP_JMPGE
+    OP_JMPGE,
+    OP_DUP,
+    /* hashtable based operations */
+    OP_NEWTABLE,
+    OP_INSERTTABLE,
+    OP_DELETETABLE,
+    OP_GETTABLE,
+    /* global variables */
+    OP_NEWGLOBAL,
+    OP_SETGLOBAL,
+    OP_GETGLOBAL,
+    OP_DELETEGLOBAL
 } opcode;
 
 typedef struct {
@@ -47,6 +59,7 @@ typedef struct {
     size_t allocated;
     table strings;
     char *fname;
+    table globals;
 } zen_VM;
 
 extern zen_VM vm;

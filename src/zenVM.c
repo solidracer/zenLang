@@ -40,11 +40,13 @@ void zvm_init() {
     vm.allocated = 0;
     vm.objects = NULL;
     ztab_init(&vm.strings);
+    ztab_init(&vm.globals);
 }
 
 void zvm_free() {
     object *cur, *n;
     ztab_free(&vm.strings);
+    ztab_free(&vm.globals);
     for (cur = vm.objects;cur;n=cur->next,zobj_free(cur),cur=n);
 }
 
@@ -59,6 +61,11 @@ int zvm_execute(byte *pc, value *k, int *lines) {
             case OP_HALT: return ZEN_SUCCESS;
             case OP_PRINT: {
                 zp_printvalue(zvm_pop(), 1);
+                continue;
+            }
+            case OP_DUP: {
+                value *top = zvm_top();
+                *vm.sp++ = *top;
                 continue;
             }
             case OP_PUSHK: {
@@ -202,6 +209,89 @@ int zvm_execute(byte *pc, value *k, int *lines) {
             }
             case OP_POP: {
                 vm.sp--;
+                continue;
+            }
+            case OP_NEWTABLE: {
+                otable *t = ztab_alocnew();
+                value *v = vm.sp++;
+                SETVAL(v, TYPE_TABLE, o, t);
+                continue;
+            }
+            case OP_INSERTTABLE: {
+                value *v = zvm_pop();
+                string *key = zvm_popstr();
+                value *table = zvm_pop();
+                if (table->t != TYPE_TABLE) {
+                    zvm_error("TypeError", "expected table got %s", zen_typenames[table->t]);
+                }
+                otable *t = GETVAL(table, o);
+                ztab_insert(GETTABLE(t), key, v);
+                zvm_push(v);
+                continue;
+            }
+            case OP_GETTABLE: {
+                string *key = zvm_popstr();
+                value *table = zvm_pop();
+                if (table->t != TYPE_TABLE) {
+                    zvm_error("TypeError", "expected table got %s", zen_typenames[table->t]);
+                }
+                otable *t = GETVAL(table, o);
+                if (ztab_search(GETTABLE(t), key, vm.sp++)) {
+                    zvm_error("KeyError", "key " STRFRMT " isnt in table", TOFRMT(key));
+                }
+                continue;
+            }
+            case OP_NOT: {
+                value *v = zvm_pop();
+                zvm_pushbool(isfalse(v));
+                continue;
+            }
+            case OP_DELETETABLE: {
+                string *key = zvm_popstr();
+                value *table = zvm_pop();
+                if (table->t != TYPE_TABLE) {
+                    zvm_error("TypeError", "expected table got %s", zen_typenames[table->t]);
+                }
+                otable *t = GETVAL(table, o);
+                if (ztab_remove(GETTABLE(t), key)) {
+                    zvm_error("KeyError", "key " STRFRMT " isnt in table", TOFRMT(key));
+                }
+                continue;
+            }
+            case OP_NEWGLOBAL: {
+                value *v = zvm_pop();
+                string *name = zvm_popstr();
+                value v2;
+                if (!ztab_search(&vm.globals, name, &v2)) {
+                    zvm_error("GlobalError", "global " STRFRMT " already exists", TOFRMT(name));
+                }
+                ztab_insert(&vm.globals, name, v);
+                continue;
+            }
+            case OP_SETGLOBAL: {
+                string *name = zvm_popstr();
+                value *val = (vm.sp-1);
+                if (ztab_set(&vm.globals, name, val)) {
+                    zvm_error("ScopeError", "variable " STRFRMT " does not exist", TOFRMT(name));
+                }
+                continue;
+            }
+            case OP_DELETEGLOBAL: {
+                string *name = zvm_popstr();
+                value v;
+                if (ztab_search(&vm.globals, name, &v)) {
+                    zvm_error("GlobalError", "global " STRFRMT " does not exist", TOFRMT(name));
+                }
+                ztab_remove(&vm.globals, name);
+                continue;
+            }
+            case OP_GETGLOBAL: {
+                string *name = zvm_popstr();
+                value v;
+                if (ztab_search(&vm.globals, name, &v)) {
+                    zvm_error("ScopeError", "variable " STRFRMT " does not exist", TOFRMT(name));
+                }
+                zvm_push(&v);
                 continue;
             }
             default: return ZEN_FAILURE;

@@ -13,7 +13,13 @@ void zobj_free(object *o) {
         case TYPE_STRING: {
             string *s = (string*)o;
             FREES(s->str, s->len+1);
-            FREES(s, sizeof(string));
+            FREE(s);
+            break;
+        }
+        case TYPE_TABLE: {
+            otable *t = (otable*)o;
+            ztab_free(GETTABLE(t));
+            FREE(t);
             break;
         }
         default: break;

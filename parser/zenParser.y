@@ -36,9 +36,10 @@
         return -1;
     }
 
-    static void enterdepth() {
+    /*static void enterdepth() {
         depth++;
-    }
+    }*/
+    #define enterdepth() (depth++)
     
     static void leavedepth() {
         depth--;
@@ -60,6 +61,7 @@
         byte isloop;
         int bj;
         int start;
+        uint_t depth;
     } blockinfo;
     static blockinfo blocks[30];
     static blockinfo *block = blocks;
@@ -86,6 +88,7 @@
             return 1;
         }
         blockinfo *bl = block++;
+        bl->depth = depth;
         bl->isloop = isloop;
         bl->bj = -1;
         enterdepth();
@@ -95,11 +98,8 @@
     #define enterblock(isloop) if (_enterblock(isloop)) YYERROR
     
     static void leaveblock() {
-        blockinfo *b = --block;
+        block--;
         leavedepth();
-        if (b->bj != -1) {
-            zc_patchjmp(b->bj);
-        }
     }
 %}
 
@@ -116,18 +116,19 @@
 
 %token <number> NUMBER
 %token <buffer> STRING NAME
-%token IDIV VAR PRINT TNULL TTRUE TFALSE GE LE EQ NEQ BREAK CONTINUE CONST
+%token IDIV VAR PRINT TNULL DELETE TTRUE TFALSE GE LE EQ NEQ BREAK CONTINUE CONST MATCH DEFAULT GLOBAL
 %token <i> AND OR
-%token <i2> WHILE IF ELSE
+%token <i2> WHILE IF ELSE CASE DO
 
 %precedence '='
 %left OR
 %left AND
-%left '<' '>' GE LE EQ NEQ
+%nonassoc '<' '>' GE LE EQ NEQ
 %left '+' '-'
 %left '*' '/' '%' IDIV
 %precedence UNARY
 %right '^'
+%precedence '[' /* subscript */
 
 %start program
 
@@ -151,21 +152,41 @@ stat:
     | continue ';'
     | block
     | ifstat
+    | dowhile ';'
+    | matchstat
+    | deletestat ';'
     ;
 
 var_stat:
     VAR NAME var_opt ';' {addlocal($2, 0);}
     | CONST VAR NAME var_opt ';' {addlocal($3, 1);}
+    | GLOBAL VAR NAME {zc_codestr($3);} var_opt ';' {
+        zc_codebyte(OP_NEWGLOBAL);
+    }
     ;
 
 var_opt: %empty {zc_codebyte(OP_PUSHNULL);}
     | '=' expr
+    ;
 
 /* this is meant to be a block statement lol */
 block:
     '{' { enterblock(0); }
     stats
     '}' { leaveblock(); }
+    ;
+
+subscript:
+    expr '[' expr ']';
+
+deletestat:
+    DELETE NAME {
+        zc_codestr($2);
+        zc_codebyte(OP_DELETEGLOBAL);
+    }
+    | DELETE subscript {
+        zc_codebyte(OP_DELETETABLE);
+    }
     ;
 
 ifstat:
@@ -190,6 +211,35 @@ ifelse: %empty |
     | ELSE ifstat
     ;
 
+opt_case: %empty 
+    | CASE {zc_codebyte(OP_DUP);} 
+      expr {
+        $1[0] = zc_codejmp(OP_JMPNEQ);
+      }
+      ':' 
+      '{' { enterblock(0); } 
+      stats 
+      '}' { 
+        leaveblock();
+        $1[1] = zc_codejmp(OP_JMP); /* skip other cases */
+        zc_patchjmp($1[0]);
+      }
+      opt_case { zc_patchjmp($1[1]); }
+    | CASE DEFAULT ':' 
+      '{' { enterblock(0); }
+      stats
+      '}' { leaveblock(); } 
+    ;
+
+matchstat:
+    MATCH '(' expr ')'
+    '{'
+        opt_case
+    '}' {
+        zc_codebyte(OP_POP); /* pop the expression */
+    }
+    ;
+
 while:
     WHILE {
         $1[0] = mchunk.len;
@@ -198,11 +248,33 @@ while:
     } 
     '{' { enterblock(1); getblock()->start = $1[0]; }
     stats
-    '}' { $1[2] = getblock()->bj; leaveblock(); }
-    {
+    '}' {
+        $1[2] = getblock()->bj; leaveblock();
         zc_patchloop($1[0]);
         zc_patchjmp($1[1]);
         if ($1[2]!=-1) zc_patchjmp($1[2]);
+    }
+    ;
+
+/* not the best way to do it... but works? */
+/* i will improve this asap */
+dowhile:
+    DO
+    '{' {
+        enterblock(1); 
+        int j = zc_codejmp(OP_JMP); /* skip continue jump */
+        getblock()->start = mchunk.len; /* "continue" uses */
+        $1[0] = zc_codejmp(OP_JMP);
+        $1[1] = mchunk.len;
+        zc_patchjmp(j);
+    }
+    stats
+    '}' { $1[2] = getblock()->bj; leaveblock(); }
+    WHILE { zc_patchjmp($1[0]); } cond {
+        int j = zc_codejmp(OP_JMPFPOP);
+        zc_patchloop($1[1]);
+        if ($1[2]!=-1) zc_patchjmp($1[2]);
+        zc_patchjmp(j);
     }
     ;
 
@@ -237,6 +309,16 @@ continue:
 
 cond:
     '(' expr ')'
+    ;
+
+constrct:
+    {zc_codebyte(OP_DUP);} expr ':' expr { zc_codebyte(OP_INSERTTABLE); zc_codebyte(OP_POP); }
+    ;
+
+
+constructors: %empty
+    | constrct ',' constructors
+    | constrct
     ;
 
 expr:
@@ -304,16 +386,18 @@ expr:
     | NAME '=' expr {
         int i = findlocal($1);
         if (i == -1) {
-            yyerror("variable '" STRFRMT "' does not exist", TOFRMT($1));
-            YYERROR;
+            zc_codestr($1);
+            zc_codebyte(OP_SETGLOBAL);
+        }else {
+            if (locals[i].isconst) {
+                yyerror("variable '" STRFRMT "' is constant", TOFRMT($1));
+                YYERROR;
+            }
+            zc_codelonginst(OP_SETFAST, i);
         }
-        if (locals[i].isconst) {
-            yyerror("variable '" STRFRMT "' is constant", TOFRMT($1));
-            YYERROR;
-        }
-        zc_codelonginst(OP_SETFAST, i);
     }
     | '-' expr %prec UNARY {zc_codebyte(OP_NEG);}
+    | '!' expr %prec UNARY {zc_codebyte(OP_NOT);}
     | '(' expr ')' {}
     | NUMBER {zc_codenum($1);}
     | STRING {zc_codestr($1);}
@@ -323,13 +407,19 @@ expr:
     | NAME {
         int i = findlocal($1);
         if (i == -1) {
-            yyerror("variable '" STRFRMT "' does not exist", TOFRMT($1));
-            YYERROR;
-        }
-        zc_codelonginst(OP_GETFAST, i);
+            zc_codestr($1);
+            zc_codebyte(OP_GETGLOBAL);
+        }else zc_codelonginst(OP_GETFAST, i);
     }
+    | subscript {
+        zc_codebyte(OP_GETTABLE);
+    }
+    | subscript '=' expr {
+        zc_codebyte(OP_INSERTTABLE);
+    }
+    | {zc_codebyte(OP_NEWTABLE);} '@' '{' constructors '}'
     ;
-
+    
 %%
 
 /* ZENLANG PARSER END, WRITTEN BY SOLIDRACER */

@@ -61,12 +61,23 @@ int ztab_search(table *t, string *key, value *v) {
     return ZEN_SUCCESS;
 }
 
+int ztab_set(table *t, string *key, value *v) {
+    entry *e;
+    if (!t->size) return ZEN_FAILURE;
+    e = findentry(t, key);
+    if (e->key!=key) return ZEN_FAILURE;
+    e->v = *v;
+    return ZEN_SUCCESS;
+}
+
 int ztab_remove(table *t, string *key) {
     entry *e;
     if (!t->size) return ZEN_FAILURE;
     e = findentry(t, key);
     if (e->key!=key) return ZEN_FAILURE;
+    e->key = NULL; /* forgot to do this here */
     SETVAL(&e->v, 0, n, 1);
+    t->size--;
     return ZEN_SUCCESS;
 }
 
@@ -82,4 +93,10 @@ string *ztab_xsearch(table *t, char *s, len_t len, hash_t h) {
         }else return NULL;
         hash = (hash+1) & (t->cap-1);
     }
+}
+
+otable *ztab_alocnew() {
+    otable *t = (otable*)zobj_allocate(sizeof(otable), TYPE_TABLE);
+    ztab_init(GETTABLE(t));
+    return t;
 }

@@ -12,7 +12,7 @@ parser: src/zenLexer.c src/zenParser.c
 bin/zen: $(OBJ) Makefile
 	@mkdir -p bin
 	@$(CC) $(CFLAGS) $(OBJ) -o bin/zen
-	@bin/zen
+	@bin/zen -h
 
 src/zenLexer.c: parser/zenLexer.l
 	@flex -o $@ $<

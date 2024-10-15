@@ -7,6 +7,7 @@ typedef enum {
     TYPE_BOOL,
     TYPE_NULL,
     TYPE_STRING,
+    TYPE_TABLE,
     TYPE_NONE
 } valuetype;
 #define ZEN_TYPECOUNT (TYPE_NONE)

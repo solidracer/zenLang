@@ -58,12 +58,18 @@
 ([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)? {char *e; yylval.number = strtod(yytext, &e); return NUMBER;}
 null {return TNULL;}
 true {return TTRUE;}
+match {return MATCH;}
+case {return CASE;}
+default {return DEFAULT;}
 false {return TFALSE;}
 print {return PRINT;}
 var {return VAR;}
 while {return WHILE;}
 break {return BREAK;}
+global {return GLOBAL;}
+delete {return DELETE;}
 const {return CONST;}
+do {return DO;}
 continue {return CONTINUE;}
 if {return IF;}
 else {return ELSE;}
@@ -79,6 +85,7 @@ else {return ELSE;}
 %%
 
 void yyerror(const char *s, ...) {
+    freebuf();
     va_list args;
     va_start(args, s);
     fprintf(stderr, "%s:%d: error: ", vm.fname, yylineno);
@@ -92,38 +99,87 @@ void signalhandler(int s) {
         fprintf(stderr, "seg fault.\n");
         exit(ZEN_FAILURE);
     }else if (s == SIGINT) {
-        fprintf(stderr, "RECEIVED SIGINT DURING EXECUTION, EXITING.");
+        fprintf(stderr, "interrupt signal recieved\n");
         exit(ZEN_FAILURE);
     }
 }
 
+static char *options = "advh";
+static int code, _dump, _abort;
+static char *_n;
+
+int optf(char o, char *arg) {
+    (void)arg;
+    switch (o) {
+        case 'a': _abort = 1; return 0;
+        case 'd': _dump = 1; return 0;
+        case 'h': {
+            printf("Copyright (c) 2024 solidracer\nThis project is licensed under the MIT License\nSee LICENSE for details\n\nwritten by solidracer\nzenlang version: %s\n\nUsage:\n\t%s [options] <filename>\n\nOptions:\n\t-d\tdump compiled bytecode\n\t-v\tprint version\n\t-a\tabort before executing the bytecode stream\n\t-h\tview this help menu\n", ZEN_VERSION, _n);
+            return 1;
+        }
+        case 'v': printf("zenlang v%s\n", ZEN_VERSION); return 0;
+        default: return 1;
+    }
+}
+
 int main(int argc, char **argv) {
-    int code = 0;
+    int i;
+    _n = argv[0];
     (void)input;
     (void)yyunput;
     signal(SIGSEGV, signalhandler);
     signal(SIGINT, signalhandler);
     if (argc < 2) {
-        printf("Copyright (c) 2024 solidracer\nThis project is licensed under the MIT License\nSee LICENSE for details\n\nwritten by solidracer\nzenlang version: %s\nusage: %s <filename>\n", ZEN_VERSION, argv[0]);
-        return ZEN_SUCCESS;
+        fprintf(stderr, "\nerror (options): no options given\n\n");
+        optf('h', NULL);
+        return ZEN_FAILURE;
     }
     argc--; argv++;
-    vm.fname = argv[0];
+    vm.fname = NULL;
+    for (i = 0;i<argc;i++) {
+        char *arg = argv[i];
+        if (arg[0]=='-') {
+            arg++;
+            int len = strlen(arg);
+            int j;
+            for (j = 0;j<len;j++) {
+                char option = arg[j];
+                char *x = strchr(options, option);
+                if (!x) {
+                    fprintf(stderr, "error (options): Unrecognized option\n");
+                    return ZEN_FAILURE;
+                }
+                /* only the last option can get an argument */
+                if (*(x+1) == ':' && (i+1 >= argc || j != len-1)) {
+                    fprintf(stderr, "error (options): Need argument for '-%c'\n", option);
+                    return ZEN_FAILURE;
+                }
+                if (optf(option, (*(x+1)==':' && j == len-1)?argv[i++]:NULL)) return ZEN_SUCCESS;
+            }
+        }else {
+            if (!vm.fname) vm.fname = arg; else {
+                fprintf(stderr, "error (options): Filename already set\n");
+                return ZEN_FAILURE;
+            }
+        }
+    }
     zvm_init();
     zc_init();
     yyin = fopen(vm.fname, "r");
     if (!yyin) {
-        perror("error");
+        perror("error (filename)");
         return ZEN_FAILURE;
     }
     code = yyparse();
 
-    /*if (!code) zp_dumpbytecode(mchunk.code, mchunk.k);
-    return ZEN_SUCCESS*/;
+    if (!code && _dump) zp_dumpbytecode(mchunk.code, mchunk.k);
+
+    if (_abort) goto a;
 
     if (!code) 
         code = zvm_execute(mchunk.code, mchunk.k, mchunk.lines);
     
+    a:
     zvm_free();
     zc_cleanup();
     fclose(yyin);

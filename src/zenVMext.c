@@ -54,6 +54,7 @@ void zvm_error(const char *msg, const char *f, ...) {
     vfprintf(stderr, f, args);
     fprintf(stderr, " at line %d\n", line);
     va_end(args);
+    vm.sp = vm.stack; /* clear stack */
     longjmp(vm.errbf, 1);
 }
 
@@ -70,4 +71,20 @@ void zvm_setbool(int b) {
 void zvm_setnull() {
     value *v = zvm_top();
     SETVAL(v, TYPE_NULL, n, 0);
+}
+
+string *zvm_popstr() {
+    value *v = zvm_pop();
+    if (v->t != TYPE_STRING) zvm_error("TypeError", "expected string got %s", zen_typenames[v->t]);
+    return GETVAL(v, o);
+}
+
+void zvm_pushstr(string *s) {
+    value *v = vm.sp++;
+    SETVAL(v, TYPE_STRING, o, s);
+}
+
+void zvm_setstr(string *s) {
+    value *v = zvm_top();
+    SETVAL(v, TYPE_STRING, o, s);
 }

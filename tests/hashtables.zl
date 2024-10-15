@@ -1,0 +1,24 @@
+var mytable = @{
+    "x": 56,
+    "y": "hello"
+};
+
+print mytable;
+
+# setting keys
+
+mytable["y"] = "goodbye";
+
+# printing keys
+
+print mytable["y"];
+
+# in this example, "y" will stay as a key but will have a null value
+
+mytable["y"] = null;
+
+# this will delete the key completely from the hashtable
+
+delete mytable["y"];
+
+print mytable;
